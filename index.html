@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Minimal Teleprompter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin:0; font-family:sans-serif; background:#000; color:#fff; }
+    textarea { width:100%; height:150px; }
+    #viewer { height:55vh; overflow:auto; text-align:center; padding:20px; }
+    .controls { display:flex; gap:12px; padding:10px; }
+    label { display:flex; flex-direction:column; font-size:14px; }
+    button { margin:8px 4px; }
+  </style>
+</head>
+<body>
+  <textarea id="script">Hello! This is your live teleprompter.</textarea>
+  <div>
+    <button id="startBtn" type="button">Start</button>
+    <button id="stopBtn" type="button">Stop</button>
+  </div>
+  <div id="viewer"></div>
+
+  <div class="controls">
+    <label>
+      Speed
+      <input id="speed" type="range" min="20" max="250" value="80" />
+    </label>
+    <label>
+      Font Size
+      <input id="fontSize" type="range" min="20" max="80" value="40" />
+    </label>
+  </div>
+
+<script>
+const viewer = document.getElementById('viewer');
+const scriptEl = document.getElementById('script');
+const speedInput = document.getElementById('speed');
+const fontSizeInput = document.getElementById('fontSize');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+
+let running = false;
+let last = null;
+let speed = Number(speedInput.value);
+let rafId = null;
+let scrollPos = 0; // track fractional scroll position
+
+function render(){
+  viewer.innerText = scriptEl.value;
+  // Re-sync scrollPos with actual position after content changes
+  scrollPos = viewer.scrollTop;
+}
+
+render();
+scriptEl.addEventListener('input', render);
+
+speedInput.addEventListener('input', () => {
+  speed = Number(speedInput.value);
+});
+
+function applyFontSize(){
+  viewer.style.fontSize = fontSizeInput.value + 'px';
+  // After font size change, maxScroll changes; keep scrollPos in range
+  const maxScroll = viewer.scrollHeight - viewer.clientHeight;
+  if (scrollPos > maxScroll) {
+    scrollPos = maxScroll;
+    viewer.scrollTop = scrollPos;
+  }
+}
+
+fontSizeInput.addEventListener('input', applyFontSize);
+applyFontSize();
+
+function loop(ts){
+  if (!running) {
+    rafId = null;
+    return;
+  }
+
+  if (last === null) last = ts;
+  const d = (ts - last) / 1000; // seconds
+  last = ts;
+
+  scrollPos += d * speed;
+
+  const maxScroll = viewer.scrollHeight - viewer.clientHeight;
+  if (scrollPos >= maxScroll) {
+    scrollPos = maxScroll;
+    viewer.scrollTop = scrollPos;
+    running = false;
+    last = null;
+    rafId = null;
+    return;
+  }
+
+  if (scrollPos < 0) scrollPos = 0;
+
+  viewer.scrollTop = scrollPos;
+
+  rafId = requestAnimationFrame(loop);
+}
+
+function startScroll(){
+  // Always (re)start a fresh animation loop from current position
+  running = true;
+  last = null;
+  scrollPos = viewer.scrollTop;
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  rafId = requestAnimationFrame(loop);
+}
+
+function stopScroll(){
+  running = false;
+  last = null;
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
+startBtn.addEventListener('click', startScroll);
+stopBtn.addEventListener('click', stopScroll);
+</script>
+</body>
+</html>
